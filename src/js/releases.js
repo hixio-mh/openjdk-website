@@ -1,6 +1,6 @@
-const {findPlatform, getBinaryExt, getInstallerExt, getSupportedVersion, getOfficialName, getPlatformOrder,
-    getVariantObject, detectLTS, loadLatestAssets, orderPlatforms, setRadioSelectors, setTickLink} = require('./common');
+const {getVariantObject, detectLTS, loadLatestAssets, setRadioSelectors} = require('./common');
 const {jvmVariant, variant} = require('./common');
+const {platform_metadata} = require('../json/config');
 
 const loading = document.getElementById('loading');
 const errorContainer = document.getElementById('error-container');
@@ -16,8 +16,12 @@ module.exports.load = () => {
     return title.split(' ')[1]
   });
 
-  Handlebars.registerHelper('fetchInstallerExt', function(filename) {
-    return `.${filename.split('.').pop()}`;
+  Handlebars.registerHelper('fetchExt', function(filename) {
+    let extension=`.${filename.split('.').pop()}`
+    if (extension == '.gz') {
+      return '.tar.gz';
+    }
+    return extension;
   });
 
   const LTS = detectLTS(`${variant}-${jvmVariant}`);
@@ -56,19 +60,6 @@ function buildLatestHTML(releasesJson) {
   let releases = [];
 
   releasesJson.forEach((releaseAsset) => {
-    const platform = findPlatform(releaseAsset.binary);
-
-    // Skip this asset if its platform could not be matched (see the website's 'config.json')
-    if (!platform) {
-      return;
-    }
-
-    let heap_size;
-    if (releaseAsset.binary.heap_size == 'large') {
-      heap_size = 'Large Heap';
-    } else if (releaseAsset.binary.heap_size == 'normal') {
-      heap_size = 'Normal';
-    }
 
     // Skip this asset if it's not a binary type we're interested in displaying
     const binary_type = releaseAsset.binary.image_type.toUpperCase();
@@ -76,16 +67,27 @@ function buildLatestHTML(releasesJson) {
       return;
     }
 
-    // Get the existing release asset (passed to the template) or define a new one
-    let release = releases.find((release) => release.platform_name === platform);
+    let platform_official_name;
+    if (releaseAsset.binary.heap_size == 'large') {
+      platform_official_name = `${releaseAsset.binary.os} ${releaseAsset.binary.architecture} large heap`
+    } else {
+      platform_official_name = `${releaseAsset.binary.os} ${releaseAsset.binary.architecture}`
+    }
+
+    let platform_supported_version;
+    for (let architecture of platform_metadata[0][releaseAsset.binary.os].architectures){
+      if (architecture.architecture == releaseAsset.binary.architecture) {
+        platform_supported_version = architecture.supported_version
+      }
+    }
+    
+    let release = releases.find((release) => release.platform_official_name === platform_official_name);
     if (!release) {
       release = {
-        platform_name: platform,
-        platform_official_name: getOfficialName(platform),
-        platform_ordinal: getPlatformOrder(platform),
-        platform_supported_version: getSupportedVersion(platform),
+        platform_official_name: platform_official_name,
+        platform_supported_version: platform_supported_version,
         release_name: releaseAsset.release_name,
-        heap_size: heap_size,
+        heap_size: releaseAsset.binary.heap_size,
         release_link: releaseAsset.release_link,
         release_datetime: moment(releaseAsset.timestamp).format('YYYY-MM-DD hh:mm:ss'),
 
@@ -95,7 +97,6 @@ function buildLatestHTML(releasesJson) {
 
     let binary_constructor = {
       type: binary_type,
-      extension: getBinaryExt(platform),
       link: releaseAsset.binary.package.link,
       checksum: releaseAsset.binary.package.checksum,
       size: Math.floor(releaseAsset.binary.package.size / 1000 / 1000)
@@ -104,13 +105,11 @@ function buildLatestHTML(releasesJson) {
     if (releaseAsset.binary.installer) {
       binary_constructor.installer_link = releaseAsset.binary.installer.link
       binary_constructor.installer_checksum = releaseAsset.binary.installer.checksum
-      binary_constructor.installer_extension = getInstallerExt(platform)
       binary_constructor.installer_size =  Math.floor(releaseAsset.binary.installer.size / 1000 / 1000)
     }
 
     // Add the new binary to the release asset
     release.binaries.push(binary_constructor);
-
 
     // We have the first binary, so add the release asset.
     if (release.binaries.length === 1) {
@@ -118,15 +117,12 @@ function buildLatestHTML(releasesJson) {
     }
   });
 
-  releases = orderPlatforms(releases, 'platform_ordinal');
   releases.forEach((release) => {
     release.binaries.sort((binaryA, binaryB) => binaryA.type > binaryB.type ? 1 : binaryA.type < binaryB.type ? -1 : 0);
   });
 
   const templateSelector = Handlebars.compile(document.getElementById('template-selector').innerHTML);
   document.getElementById('latest-selector').innerHTML = templateSelector({releases});
-
-  setTickLink();
 
   global.populateFilters('all');
 

@@ -1,11 +1,8 @@
 const {
   detectOS,
-  findPlatform,
-  getBinaryExt,
   loadLatestAssets,
   makeQueryString,
   setRadioSelectors,
-  setTickLink
 } = require('./common');
 const {
   jvmVariant,
@@ -65,30 +62,16 @@ function buildHomepageHTML(releasesJson, jckJSON, OS) {
   // if the OS has been detected...
   if (OS) {
     releasesJson.forEach((eachAsset) => { // iterate through the assets attached to this release
-      const uppercaseFilename = eachAsset.binary.package.name.toUpperCase();
-      const thisPlatform = findPlatform(eachAsset.binary);
+      const os = eachAsset.binary.os
+      const architecture = eachAsset.binary.architecture
 
-      // firstly, check if a valid searchableName has been returned (i.e. the platform is recognised)...
-      if (thisPlatform) {
-        // secondly, check if the file has the expected file extension for that platform...
-        // (this filters out all non-binary attachments, e.g. SHA checksums - these contain the platform name, but are not binaries)
-        var thisBinaryExtension = getBinaryExt(thisPlatform); // get the binary extension associated with this platform
-        if (matchingFile == null) {
-          if (uppercaseFilename.includes(thisBinaryExtension.toUpperCase())) {
-            const uppercaseOSname = OS.searchableName.toUpperCase();
-            if (Object.keys(jckJSON).length !== 0) {
-              if (jckJSON[releasesJson.tag_name] && Object.prototype.hasOwnProperty.call(jckJSON[releasesJson.tag_name], uppercaseOSname)) {
-                document.getElementById('jck-approved-tick').classList.remove('hide');
-                setTickLink();
-              }
-            }
-            // thirdly check if JDK or JRE (we want to serve JDK by default)
-            if (eachAsset.binary.image_type == 'jdk') {
-              // fourthly, check if the user's OS searchableName string matches part of this binary's name (e.g. ...X64_LINUX...)
-              if (uppercaseFilename.includes(uppercaseOSname)) {
-                matchingFile = eachAsset; // set the matchingFile variable to the object containing this binary
-              }
-            }
+      // thirdly check if JDK or JRE (we want to serve JDK by default)
+      if (eachAsset.binary.image_type == 'jdk') {
+        // only return normal heap
+        if (eachAsset.binary.heap_size == 'normal') {
+          // lastly, check if the user's OS matches the binary OS
+          if (os == OS.os && architecture == OS.architecture) {
+            matchingFile = eachAsset; // set the matchingFile variable to the object containing this binary
           }
         }
       }

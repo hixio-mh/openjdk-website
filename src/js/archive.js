@@ -1,5 +1,4 @@
-const {findPlatform, getBinaryExt, getInstallerExt, getOfficialName, getPlatformOrder,
-  loadAssetInfo, setRadioSelectors} = require('./common');
+const {loadAssetInfo, setRadioSelectors} = require('./common');
 const {jvmVariant, variant} = require('./common');
 
 const loading = document.getElementById('loading');
@@ -39,12 +38,6 @@ function buildArchiveHTML(aReleases) {
 
     // populate 'platformTableRows' with one row per binary for this release...
     aRelease.binaries.forEach(aReleaseAsset => {
-      const platform = findPlatform(aReleaseAsset);
-
-      // Skip this asset if its platform could not be matched (see the website's 'config.json')
-      if (!platform) {
-        return;
-      }
 
       // Skip this asset if it's not a binary type we're interested in displaying
       const binary_type = aReleaseAsset.image_type.toUpperCase();
@@ -52,17 +45,22 @@ function buildArchiveHTML(aReleases) {
         return;
       }
 
-      if (!release.platforms[platform]) {
-        release.platforms[platform] = {
-          official_name: getOfficialName(platform),
-          ordinal: getPlatformOrder(platform),
+      let platform_official_name;
+      if (aReleaseAsset.heap_size == 'large') {
+        platform_official_name = `${aReleaseAsset.os} ${aReleaseAsset.architecture} large heap`
+      } else {
+        platform_official_name = `${aReleaseAsset.os} ${aReleaseAsset.architecture}`
+      }
+
+      if (!release.platforms[platform_official_name]) {
+        release.platforms[platform_official_name] = {
+          official_name: platform_official_name,
           assets: [],
         }
       }
 
       let binary_constructor = {
         type: binary_type,
-        extension: 'INSTALLER' === binary_type ? getInstallerExt(platform) : getBinaryExt(platform),
         link: aReleaseAsset.package.link,
         checksum: aReleaseAsset.package.checksum,
         size: Math.floor(aReleaseAsset.package.size / 1000 / 1000),
@@ -71,12 +69,11 @@ function buildArchiveHTML(aReleases) {
       if (aReleaseAsset.installer) {
         binary_constructor.installer_link = aReleaseAsset.installer.link
         binary_constructor.installer_checksum = aReleaseAsset.installer.checksum
-        binary_constructor.installer_extension = getInstallerExt(platform)
         binary_constructor.installer_size =  Math.floor(aReleaseAsset.installer.size / 1000 / 1000)
       }
 
       // Add the new binary to the release asset
-      release.platforms[platform].assets.push(binary_constructor);
+      release.platforms[platform_official_name].assets.push(binary_constructor);
     });
     releases.push(release);
   });

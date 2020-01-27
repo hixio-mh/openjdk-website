@@ -1,89 +1,38 @@
 // prefix for assets (e.g. logo)
 
-const {platforms, variants} = require('../json/config');
+const {variants, platform_metadata} = require('../json/config');
 
 // Enables things like 'lookup["X64_MAC"]'
 const lookup = {};
-platforms.forEach((platform) => lookup[platform.searchableName] = platform);
 
 let variant = module.exports.variant = getQueryByName('variant') || 'openjdk8';
 let jvmVariant = module.exports.jvmVariant = getQueryByName('jvmVariant') || 'hotspot';
 
 module.exports.getVariantObject = (variantName) => variants.find((variant) => variant.searchableName === variantName);
 
-module.exports.findPlatform = (binaryData) => {
-  const matchedPlatform = platforms.filter((platform) => {
-      return Object.prototype.hasOwnProperty.call(platform, 'attributes')
-        && Object.keys(platform.attributes).every((attr) => platform.attributes[attr] === binaryData[attr])
-    })[0];
-
-  return matchedPlatform === undefined ? null : matchedPlatform.searchableName;
-}
-
-// gets the OFFICIAL NAME when you pass in 'searchableName'
-module.exports.getOfficialName = (searchableName) => lookup[searchableName].officialName;
-
-module.exports.getPlatformOrder = (searchableName) => {
-  return platforms.findIndex((platform) => platform.searchableName == searchableName);
-}
-
-module.exports.orderPlatforms = (input, attr = 'thisPlatformOrder') => {
-  return sortByProperty(input, attr);
-};
-
-const sortByProperty = module.exports.sortByProperty = (input, property, descending) => {
-  const invert = descending ? -1 : 1;
-  const sorter = (a, b) => {
-    return invert * (a[property] > b[property] ? 1 : a[property] < b[property] ? -1 : 0);
-  };
-
-  if (Array.isArray(input)) {
-    return input.sort(sorter);
-  } else {
-    // Preserve the source object key as '_key'
-    return Object.keys(input)
-      .map(_key => Object.assign(input[_key], {_key}))
-      .sort(sorter);
-  }
-};
-
-// gets the BINARY EXTENSION when you pass in 'searchableName'
-module.exports.getBinaryExt = (searchableName) => lookup[searchableName].binaryExtension;
-
-// gets the INSTALLER EXTENSION when you pass in 'searchableName'
-module.exports.getInstallerExt = (searchableName) => lookup[searchableName].installerExtension;
-
 // gets the Supported Version WITH PATH when you pass in 'searchableName'
 module.exports.getSupportedVersion = (searchableName) => lookup[searchableName].supported_version;
-
-// gets the INSTALLATION COMMAND when you pass in 'searchableName'
-module.exports.getInstallCommand = (searchableName) => lookup[searchableName].installCommand;
-
-// gets the CHECKSUM COMMAND when you pass in 'searchableName'
-module.exports.getChecksumCommand = (searchableName) => lookup[searchableName].checksumCommand;
-
-// gets the CHECKSUM AUTO COMMAND HINT when you pass in 'searchableName'
-module.exports.getChecksumAutoCommandHint = (searchableName) => lookup[searchableName].checksumAutoCommandHint;
-
-// gets the CHECKSUM AUTO COMMAND when you pass in 'searchableName'
-module.exports.getChecksumAutoCommand = (searchableName) => lookup[searchableName].checksumAutoCommand;
-
-// gets the PATH COMMAND when you pass in 'searchableName'
-module.exports.getPathCommand = (searchableName) => lookup[searchableName].pathCommand;
 
 // This function returns an object containing all information about the user's OS.
 // The OS info comes from the 'platforms' array, which in turn comes from 'config.json'.
 // `platform` comes from `platform.js`, which should be included on the page where `detectOS` is used.
 module.exports.detectOS = () => {
-  return platforms.find((aPlatform) => {
-    /*global platform*/
-    // Workaround for Firefox on macOS which is 32 bit only
-    if (platform.os.family == 'OS X') {
-      platform.os.architecture = 64
+
+  /*global platform*/
+  // Workaround for Firefox on macOS which is 32 bit only
+  if (platform.os.family == 'OS X') {
+    platform.os.architecture = 64
+  }
+
+  for (let os in platform_metadata[0]) {
+      for (let architecture of platform_metadata[0][os].architectures) {
+        if (architecture.osDetectionString.toUpperCase().includes(platform.os.family.toUpperCase()) && architecture.architecture.endsWith(platform.os.architecture)){
+          architecture.os = os
+          return architecture
+        }
     }
-    return aPlatform.osDetectionString.toUpperCase().includes(platform.os.family.toUpperCase())
-      && aPlatform.attributes.architecture.endsWith(platform.os.architecture); // 32 or 64 int
-  }) || null;
+  }
+  return null
 }
 
 module.exports.detectLTS = (version) => {
@@ -204,21 +153,6 @@ module.exports.buildMenuTwisties = () => {
     thisLine.onclick = function () {
       this.parentNode.classList.toggle('open');
     }
-  }
-}
-
-module.exports.setTickLink = () => {
-  const ticks = document.getElementsByClassName('tick');
-  for (let i = 0; i < ticks.length; i++) {
-    ticks[i].addEventListener('click', (event) => {
-      var win = window.open('https://en.wikipedia.org/wiki/Technology_Compatibility_Kit', '_blank');
-      if (win) {
-        win.focus();
-      } else {
-        alert('New tab blocked - please allow popups.');
-      }
-      event.preventDefault();
-    });
   }
 }
 

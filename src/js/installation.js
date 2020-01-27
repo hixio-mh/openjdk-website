@@ -1,7 +1,6 @@
-const {detectOS, findPlatform, getBinaryExt, getChecksumCommand, getInstallCommand, getOfficialName,
-  getPathCommand, getPlatformOrder, loadAssetInfo, orderPlatforms, setRadioSelectors, getChecksumAutoCommandHint,
-  getChecksumAutoCommand } = require('./common');
+const {detectOS, loadAssetInfo, setRadioSelectors} = require('./common');
 const {jvmVariant, variant} = require('./common');
+const {platform_metadata} = require('../json/config');
 
 const loading = document.getElementById('loading');
 const errorContainer = document.getElementById('error-container');
@@ -25,62 +24,54 @@ function buildInstallationHTML(releasesJson) {
   // for each asset attached to this release, check if it's a valid binary, then add a download block for it...
   assetArray.forEach((eachAsset) => {
     const ASSETOBJECT = {};
-    const uppercaseFilename = eachAsset.package.name.toUpperCase();
-    ASSETOBJECT.thisPlatform = findPlatform(eachAsset);
 
-    // check if the platform name is recognised...
-    if (ASSETOBJECT.thisPlatform) {
-      ASSETOBJECT.thisPlatformOrder = getPlatformOrder(ASSETOBJECT.thisPlatform);
-      ASSETOBJECT.thisOfficialName = getOfficialName(ASSETOBJECT.thisPlatform) + ' ' + eachAsset.image_type;
-      ASSETOBJECT.thisPlatformType = (ASSETOBJECT.thisPlatform + '-' + eachAsset.image_type).toUpperCase();
+    ASSETOBJECT.thisPlatform = eachAsset;
 
-      // if the filename contains both the platform name and the matching BINARY extension, add the relevant info to the asset object
-      ASSETOBJECT.thisBinaryExtension = getBinaryExt(ASSETOBJECT.thisPlatform);
-      if (uppercaseFilename.includes(ASSETOBJECT.thisBinaryExtension.toUpperCase())) {
-        ASSETOBJECT.thisPlatformExists = true;
-        ASSETOBJECT.thisBinaryLink = eachAsset.package.link;
-        ASSETOBJECT.thisBinaryFilename = eachAsset.package.name;
-        ASSETOBJECT.thisChecksum = eachAsset.package.checksum;
-        ASSETOBJECT.thisChecksumLink = eachAsset.package.checksum_link;
-        ASSETOBJECT.thisChecksumFilename = eachAsset.package.name.replace(ASSETOBJECT.thisBinaryExtension, '.sha256.txt');
-        ASSETOBJECT.thisUnzipCommand = getInstallCommand(ASSETOBJECT.thisPlatform).replace('FILENAME', ASSETOBJECT.thisBinaryFilename);
-        ASSETOBJECT.thisChecksumCommand = getChecksumCommand(ASSETOBJECT.thisPlatform).replace('FILENAME', ASSETOBJECT.thisBinaryFilename);
+    let platform_official_name;
+    if (eachAsset.heap_size == 'large') {
+      platform_official_name = `${eachAsset.os}-${eachAsset.architecture}-${eachAsset.image_type}-large-heap`
+    } else {
+      platform_official_name = `${eachAsset.os}-${eachAsset.architecture}-${eachAsset.image_type}`
+    }
 
-        // the check sum auto command hint is always printed,
-        // so we just configure with empty string if not present
-        ASSETOBJECT.thisChecksumAutoCommandHint = getChecksumAutoCommandHint(ASSETOBJECT.thisPlatform) || '';
-        // build download sha256 and verify auto command
-        const thisChecksumAutoCommand = getChecksumAutoCommand(ASSETOBJECT.thisPlatform);
-        let sha256FileName = ASSETOBJECT.thisChecksumLink;
-        const separator = sha256FileName.lastIndexOf('/');
-        if (separator > -1) {
-          sha256FileName = sha256FileName.substring(separator + 1);
-        }
-        ASSETOBJECT.thisChecksumAutoCommand = thisChecksumAutoCommand.replace(
-          /FILEHASHURL/g,
-          ASSETOBJECT.thisChecksumLink
-        ).replace(
-          /FILEHASHNAME/g,
-          sha256FileName
-        ).replace(
-          /FILENAME/g,
-          ASSETOBJECT.thisBinaryFilename
-        );
+    ASSETOBJECT.thisPlatformType = platform_official_name;
+    ASSETOBJECT.thisPlatformExists = true;
+    ASSETOBJECT.thisBinaryLink = eachAsset.package.link;
+    ASSETOBJECT.thisBinaryFilename = eachAsset.package.name;
+    ASSETOBJECT.thisChecksum = eachAsset.package.checksum;
+    ASSETOBJECT.thisChecksumLink = eachAsset.package.checksum_link;
+    ASSETOBJECT.thisChecksumFilename = `${eachAsset.package.name}.sha256.txt`,
+    ASSETOBJECT.thisUnzipCommand = platform_metadata[0][eachAsset.os].installCommand.replace('FILENAME', ASSETOBJECT.thisBinaryFilename);
+    ASSETOBJECT.thisChecksumCommand = platform_metadata[0][eachAsset.os].checksumCommand.replace('FILENAME', ASSETOBJECT.thisBinaryFilename);
+    ASSETOBJECT.thisChecksumAutoCommandHint = platform_metadata[0][eachAsset.os].checksumAutoCommandHint
 
-        const dirName = releasesJson[0].release_name + (eachAsset.image_type === 'jre' ? '-jre' : '');
-        ASSETOBJECT.thisPathCommand = getPathCommand(ASSETOBJECT.thisPlatform).replace('DIRNAME', dirName);
-      }
+    const thisChecksumAutoCommand = platform_metadata[0][eachAsset.os].checksumAutoCommand
+    let sha256FileName = ASSETOBJECT.thisChecksumLink;
+    const separator = sha256FileName.lastIndexOf('/');
+    if (separator > -1) {
+      sha256FileName = sha256FileName.substring(separator + 1);
+    }
+    ASSETOBJECT.thisChecksumAutoCommand = thisChecksumAutoCommand.replace(
+      /FILEHASHURL/g,
+      ASSETOBJECT.thisChecksumLink
+    ).replace(
+      /FILEHASHNAME/g,
+      sha256FileName
+    ).replace(
+      /FILENAME/g,
+      ASSETOBJECT.thisBinaryFilename
+    );
 
-      if (ASSETOBJECT.thisPlatformExists) {
-        ASSETARRAY.push(ASSETOBJECT);
-      }
+    const dirName = releasesJson[0].release_name + (eachAsset.image_type === 'jre' ? '-jre' : '');
+    ASSETOBJECT.thisPathCommand = platform_metadata[0][eachAsset.os].pathCommand.replace('DIRNAME', dirName);
 
-
+    if (ASSETOBJECT.thisPlatformExists) {
+      ASSETARRAY.push(ASSETOBJECT);
     }
   });
 
   const template = Handlebars.compile(document.getElementById('template').innerHTML);
-  document.getElementById('installation-template').innerHTML = template({htmlTemplate: orderPlatforms(ASSETARRAY)});
+  document.getElementById('installation-template').innerHTML = template({htmlTemplate: ASSETARRAY});
 
   /*global hljs*/
   hljs.initHighlightingOnLoad();
@@ -104,7 +95,7 @@ function attachCopyButtonListeners() {
 }
 
 function displayInstallPlatform() {
-  const platformHash = window.location.hash.substr(1).toUpperCase();
+  const platformHash = window.location.hash.substr(1);
   const thisPlatformInstallation = document.getElementById(`installation-container-${platformHash}`);
   unselectInstallPlatform();
 
@@ -125,7 +116,7 @@ function displayInstallPlatform() {
 function unselectInstallPlatform() {
   const platformInstallationDivs = document.getElementById('installation-container')
     .getElementsByClassName('installation-single-platform');
-
+    
   for (let i = 0; i < platformInstallationDivs.length; i++) {
     platformInstallationDivs[i].classList.add('hide');
   }
@@ -138,9 +129,17 @@ function setInstallationPlatformSelector(thisReleasePlatforms) {
 
   if (platformSelector.options.length === 1) {
     thisReleasePlatforms.forEach((eachPlatform) => {
+
+      let platform_official_name;
+        if (eachPlatform.thisPlatform.heap_size == 'large') {
+        platform_official_name = `${eachPlatform.thisPlatform.os}-${eachPlatform.thisPlatform.architecture}-${eachPlatform.thisPlatform.image_type}-large-heap`
+      } else {
+        platform_official_name = `${eachPlatform.thisPlatform.os}-${eachPlatform.thisPlatform.architecture}-${eachPlatform.thisPlatform.image_type}`
+      }
+
       const op = new Option();
-      op.value = eachPlatform.thisPlatformType;
-      op.text = eachPlatform.thisOfficialName;
+      op.value = platform_official_name;
+      op.text = platform_official_name;
       platformSelector.options.add(op);
     });
   }

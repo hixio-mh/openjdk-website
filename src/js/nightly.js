@@ -1,4 +1,4 @@
-const {findPlatform, getBinaryExt, getOfficialName, getInstallerExt, loadAssetInfo, setRadioSelectors} = require('./common');
+const {loadAssetInfo, setRadioSelectors} = require('./common');
 const {jvmVariant, variant} = require('./common');
 
 const loading = document.getElementById('loading');
@@ -15,6 +15,14 @@ module.exports.load = () => {
   setRadioSelectors();
   setDatePicker();
   populateNightly(); // run the function to populate the table on the Nightly page.
+
+  Handlebars.registerHelper('fetchExt', function(filename) {
+    let extension=`.${filename.split('.').pop()}`
+    if (extension == '.gz') {
+      return '.tar.gz';
+    }
+    return extension;
+  });
 
   numberpicker.onchange = datepicker.onchange = () => { setTableRange() };
 }
@@ -49,7 +57,7 @@ function getFiles(releasesJson) {
 
   releasesJson.forEach((release) => {
     release.binaries.forEach((asset) => {
-      if (/(?:\.tar\.gz|\.zip)$/.test(asset.package.name) && findPlatform(asset)) {
+      if (/(?:\.tar\.gz|\.zip)$/.test(asset.package.name)) {
         assets.push({release, asset});
       }
     });
@@ -79,31 +87,32 @@ function buildNightlyHTML(files) {
     const nameOfFile = eachAsset.package.name;
     const type = nameOfFile.includes('-jre') ? 'jre' : 'jdk';
 
-    NIGHTLYOBJECT.thisPlatform = findPlatform(eachAsset); // get the searchableName, e.g. MAC or X64_LINUX.
-
-    // secondly, check if the file has the expected file extension for that platform...
-    // (this filters out all non-binary attachments, e.g. SHA checksums - these contain the platform name, but are not binaries)
-    NIGHTLYOBJECT.thisBinaryExtension = getBinaryExt(NIGHTLYOBJECT.thisPlatform); // get the file extension associated with this platform
-    NIGHTLYOBJECT.thisInstalleExtension = getInstallerExt(NIGHTLYOBJECT.thisPlatform);
-
-    if (nameOfFile.toUpperCase().includes(NIGHTLYOBJECT.thisBinaryExtension.toUpperCase())) {
-      // set values ready to be injected into the HTML
-      const publishedAt = eachRelease.timestamp;
-      NIGHTLYOBJECT.thisReleaseName = eachRelease.release_name.slice(0, 12);
-      NIGHTLYOBJECT.thisType = type;
-      NIGHTLYOBJECT.thisReleaseDay = moment(publishedAt).format('D');
-      NIGHTLYOBJECT.thisReleaseMonth = moment(publishedAt).format('MMMM');
-      NIGHTLYOBJECT.thisReleaseYear = moment(publishedAt).format('YYYY');
-      NIGHTLYOBJECT.thisGitLink = eachRelease.release_link;
-      NIGHTLYOBJECT.thisOfficialName = getOfficialName(NIGHTLYOBJECT.thisPlatform);
-      NIGHTLYOBJECT.thisBinaryLink = eachAsset.package.link;
-      NIGHTLYOBJECT.thisBinarySize = Math.floor(eachAsset.package.size / 1000 / 1000);
-      NIGHTLYOBJECT.thisChecksum = eachAsset.package.checksum;
-      if (eachAsset.installer) {
-        NIGHTLYOBJECT.thisInstallerLink = eachAsset.installer.link;
-      }
-      NIGHTLYARRAY.push(NIGHTLYOBJECT);
+    let platform_official_name;
+    if (eachAsset.heap_size == 'large') {
+      platform_official_name = `${eachAsset.os} ${eachAsset.architecture} large heap`
+    } else {
+      platform_official_name = `${eachAsset.os} ${eachAsset.architecture}`
     }
+
+    NIGHTLYOBJECT.thisPlatform = platform_official_name;
+
+    // set values ready to be injected into the HTML
+    const publishedAt = eachRelease.timestamp;
+    NIGHTLYOBJECT.thisReleaseName = eachRelease.release_name.slice(0, 12);
+    NIGHTLYOBJECT.thisType = type;
+    NIGHTLYOBJECT.thisReleaseDay = moment(publishedAt).format('D');
+    NIGHTLYOBJECT.thisReleaseMonth = moment(publishedAt).format('MMMM');
+    NIGHTLYOBJECT.thisReleaseYear = moment(publishedAt).format('YYYY');
+    NIGHTLYOBJECT.thisGitLink = eachRelease.release_link;
+    NIGHTLYOBJECT.thisOfficialName = platform_official_name,
+    NIGHTLYOBJECT.thisBinaryLink = eachAsset.package.link;
+    NIGHTLYOBJECT.thisBinarySize = Math.floor(eachAsset.package.size / 1000 / 1000);
+    NIGHTLYOBJECT.thisChecksum = eachAsset.package.checksum;
+    if (eachAsset.installer) {
+      NIGHTLYOBJECT.thisInstallerLink = eachAsset.installer.link;
+      NIGHTLYOBJECT.thisInstallerSize = Math.floor(eachAsset.installer.size / 1000 / 1000);
+    }
+    NIGHTLYARRAY.push(NIGHTLYOBJECT);
   });
 
   const template = Handlebars.compile(document.getElementById('template').innerHTML);

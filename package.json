@@ -31,7 +31,7 @@
     "gulp-robots": "^2.0.4",
     "gulp-sass": "^4.0.1",
     "gulp-sitemap": "^5.1.0",
-    "gulp-uglify": "3.0.0",
+    "gulp-uglify": "3.0.2",
     "mocha": "^5.2.0",
     "open": "^0.0.5",
     "run-sequence": "^2.2.1",

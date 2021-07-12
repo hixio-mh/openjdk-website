@@ -33,7 +33,7 @@
     "gulp-sitemap": "^5.1.0",
     "gulp-uglify": "3.0.0",
     "mocha": "^5.2.0",
-    "open": "^0.0.5",
+    "open": "^6.0.0",
     "run-sequence": "^2.2.1",
     "util": "^0.11.0"
   },
